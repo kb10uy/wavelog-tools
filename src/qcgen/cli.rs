@@ -1,30 +1,19 @@
 use std::{convert::Infallible, path::PathBuf, str::FromStr};
 
 use adif_reader::LengthMode;
-use clap::{ArgGroup, Args, ValueEnum};
+use clap::{Args, ValueEnum};
 use compact_str::{CompactString, ToCompactString};
 use time::{Date, error::Parse as TimeParseError, macros::format_description};
-use url::Url;
 
 /// Generates JSON data for QSL cards.
 #[derive(Debug, Clone, Args)]
-#[command(group(ArgGroup::new("source").required(true)))]
 pub struct Arguments {
     /// Processor script file.
     pub script_path: PathBuf,
 
-    /// Read QSOs from ADIF file.
-    #[arg(long, group = "source", value_name = "FILE")]
+    /// Read QSOs from ADIF file instead of Wavelog.
+    #[arg(long, value_name = "FILE")]
     pub adif: Option<PathBuf>,
-
-    /// Read QSOs from Wavelog instance at URL.
-    #[arg(long, group = "source", value_name = "URL")]
-    pub wavelog: Option<Url>,
-
-    /// Read Wavelog API token from file.
-    /// If omitted, WAVELOG_TOKEN environment variable is used.
-    #[arg(long, conflicts_with = "adif", value_name = "FILE")]
-    pub wavelog_token_file: Option<PathBuf>,
 
     /// Fetch QSOs only from specified Wavelog station locations.
     #[arg(
@@ -44,7 +33,7 @@ pub struct Arguments {
     pub qso_until: Option<Date>,
 
     /// Do not resolve subdivision names via Wavelog catalog.
-    #[arg(long, conflicts_with = "adif")]
+    #[arg(long)]
     pub no_state_names: bool,
 
     /// Process all QSOs regardless of QSL_SENT.
@@ -57,13 +46,10 @@ pub struct Arguments {
     #[arg(short, long = "lenient")]
     pub lenient_length: Option<LenientMode>,
 
-    /// Specify instruments definition file.
+    /// Specify additional instruments definition file.
+    /// instruments.toml next to config file is always loaded first if exists.
     #[arg(short, long = "instruments")]
     pub instruments_files: Vec<PathBuf>,
-
-    /// Specify operators definition file.
-    #[arg(short, long = "operators")]
-    pub operators_files: Vec<PathBuf>,
 
     /// Specify arguments passed to script.
     #[arg(short = 'A', long = "args")]

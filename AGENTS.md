@@ -11,6 +11,7 @@ Wavelog Tools is a single Rust binary (`wavelog-tools`) that bundles tools using
 
 - `src/main.rs`: entry point, dispatches subcommands
 - `src/cli.rs`: top-level clap definitions (`Cli`, `Command`)
+- `src/config.rs`: `config.toml` shared by all tools (Wavelog connection, operators)
 - `src/wavelog.rs`, `src/wavelog/`: Wavelog API v2 client, independent from each tool
 - `src/qso.rs`, `src/qso/`: common QSO data extracted from ADIF records
 - `src/schope.rs`, `src/schope/`: Lua scripting engine and Lua-facing data types
@@ -19,9 +20,10 @@ Wavelog Tools is a single Rust binary (`wavelog-tools`) that bundles tools using
 
 ### Adding a Tool
 
-1. Create `src/<tool>.rs` exposing `Arguments` (`clap::Args`) and `run(args)`
+1. Create `src/<tool>.rs` exposing `Arguments` (`clap::Args`) and `run(args, &Config)`
 2. Add a variant to `Command` in `src/cli.rs` and dispatch it in `src/main.rs`
 3. Put API calls in `src/wavelog/` rather than in the tool module
+4. Obtain `WavelogClient` via `Config::wavelog_client()`; _do not_ add CLI options for URL or token
 
 ## Commands
 

@@ -4,7 +4,7 @@ mod data;
 mod source;
 mod subdivision;
 
-use std::{collections::HashMap, env, fs::read_to_string, io::stdout, path::Path, sync::LazyLock};
+use std::{collections::HashMap, fs::read_to_string, io::stdout, path::Path, sync::LazyLock};
 
 use adif_reader::document::Record as AdifRecord;
 use anyhow::{Context, Result, bail};
@@ -12,38 +12,38 @@ use callfind::grid_locator::GridLocator;
 use compact_str::{CompactString, ToCompactString};
 use mlua::prelude::*;
 use regex::Regex;
-use secrecy::SecretString;
 use time::UtcOffset;
 use tracing::{Level, info, span, warn};
 
 use crate::{
+    config::{Config, OperatorConfig},
     qcgen::{
         card::{QslCard, QslCardEntry, QslInfo, QslInstrument, QslOperator, QslStation},
-        data::{Instrument, Operator, read_items_from_tomls},
+        data::{Instrument, read_items_from_tomls},
         source::AdifSource,
         subdivision::SubdivisionResolver,
     },
     qso::{exchange::QsoExchanges, qsl::QslStatus, record::QsoRecord},
     schope::engine::{initialize_lua, lua_to_json},
-    wavelog::{QsoQuery, WavelogClient},
+    wavelog::QsoQuery,
 };
 
 pub use cli::Arguments;
 
-const TOKEN_ENV: &str = "WAVELOG_TOKEN";
+const INSTRUMENTS_FILENAME: &str = "instruments.toml";
 
 static RE_EXTRA_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"!(\w+):([^\s]+)"#).expect("valid regex"));
 
 struct EntryContext<'a> {
     instruments: HashMap<String, Instrument>,
-    operators: HashMap<String, Operator>,
+    operators: &'a HashMap<String, OperatorConfig>,
     default_instrument: Option<&'a str>,
     default_power: Option<f64>,
     subdivisions: Option<SubdivisionResolver<'a>>,
 }
 
-pub fn run(args: Arguments) -> Result<()> {
+pub fn run(args: Arguments, config: &Config) -> Result<()> {
     let script_path = args
         .script_path
         .canonicalize()
@@ -54,15 +54,10 @@ pub fn run(args: Arguments) -> Result<()> {
         .map(|a| (a.0.to_string(), a.1.unwrap_or_default().to_string()))
         .collect();
 
-    let client = match &args.wavelog {
-        Some(url) => {
-            let token = read_token(args.wavelog_token_file.as_deref())?;
-            Some(WavelogClient::new(url, token)?)
-        }
-        None => None,
-    };
-    let source = match (&client, args.adif) {
-        (Some(client), _) => AdifSource::Wavelog(
+    let client = config.wavelog_client()?;
+    let source = match (args.adif, &client) {
+        (Some(path), _) => AdifSource::File(path),
+        (None, Some(client)) => AdifSource::Wavelog(
             client,
             QsoQuery {
                 station_ids: args.station_id,
@@ -70,14 +65,21 @@ pub fn run(args: Arguments) -> Result<()> {
                 qso_until: args.qso_until,
             },
         ),
-        (None, Some(path)) => AdifSource::File(path),
-        (None, None) => bail!("no QSO source specified"),
+        (None, None) => bail!(
+            "Wavelog is not configured; add [wavelog] to {} or specify --adif",
+            Config::default_path()?.display()
+        ),
     };
     let documents = source.read_documents(args.lenient_length.unwrap_or_default().into())?;
 
     let mut context = EntryContext {
-        instruments: read_items_from_tomls(args.instruments_files)?,
-        operators: read_items_from_tomls(args.operators_files)?,
+        instruments: read_items_from_tomls(
+            config
+                .sibling_file(INSTRUMENTS_FILENAME)
+                .into_iter()
+                .chain(args.instruments_files),
+        )?,
+        operators: &config.operators,
         default_instrument: args.instrument.as_deref(),
         default_power: args.power,
         subdivisions: client
@@ -104,18 +106,6 @@ pub fn run(args: Arguments) -> Result<()> {
     serde_json::to_writer(stdout().lock(), &processed_json)?;
 
     Ok(())
-}
-
-fn read_token(token_file: Option<&Path>) -> Result<SecretString> {
-    let token = match token_file {
-        Some(path) => {
-            read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?
-        }
-        None => env::var(TOKEN_ENV).with_context(|| {
-            format!("Wavelog token not found; specify --wavelog-token-file or set {TOKEN_ENV}")
-        })?,
-    };
-    Ok(SecretString::from(token.trim()))
 }
 
 fn build_entry(

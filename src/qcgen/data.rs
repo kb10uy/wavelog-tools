@@ -10,11 +10,6 @@ pub struct Instrument {
     pub default_power: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct Operator {
-    pub name: String,
-}
-
 pub fn read_items_from_tomls<T: DeserializeOwned>(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
 ) -> Result<HashMap<String, T>> {

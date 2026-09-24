@@ -143,8 +143,11 @@ fn build_entry(
                 None
             }
         })
-        .or(context.default_power)
-        .or(instrument.and_then(|i| i.default_power));
+        .filter(is_valid_power)
+        .or(context.default_power.filter(is_valid_power))
+        .or(instrument
+            .and_then(|i| i.default_power)
+            .filter(is_valid_power));
 
     let operator_callsign = get_optional_field(record, "OPERATOR");
     let operator_name = operator_callsign
@@ -172,6 +175,11 @@ fn build_entry(
             },
         },
     })
+}
+
+/// Checks whether the power value is valid; zero is treated as missing.
+fn is_valid_power(power: &f64) -> bool {
+    *power != 0.0
 }
 
 fn build_station(

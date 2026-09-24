@@ -1,0 +1,8 @@
+[wavelog]
+url = "https://log.example.com"
+# Specify either token or token_file. If both are omitted, WAVELOG_TOKEN is used.
+token = "wl2_xxxxxxxxxxxxxxxx"
+# token_file = "/path/to/token"
+
+[operators.N0CALL]
+name = "No Call"

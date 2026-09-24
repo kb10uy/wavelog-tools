@@ -4,7 +4,13 @@ mod data;
 mod source;
 mod subdivision;
 
-use std::{collections::HashMap, fs::read_to_string, io::stdout, path::Path, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    fs::read_to_string,
+    io::stdout,
+    path::{Path, absolute},
+    sync::LazyLock,
+};
 
 use adif_reader::document::Record as AdifRecord;
 use anyhow::{Context, Result, bail};
@@ -23,7 +29,7 @@ use crate::{
         source::AdifSource,
         subdivision::SubdivisionResolver,
     },
-    qso::{exchange::QsoExchanges, qsl::QslStatus, record::QsoRecord},
+    qso::{exchange::QsoExchanges, get_optional_field, qsl::QslStatus, record::QsoRecord},
     schope::engine::{initialize_lua, lua_to_json},
     wavelog::QsoQuery,
 };
@@ -33,7 +39,7 @@ pub use cli::Arguments;
 const INSTRUMENTS_FILENAME: &str = "instruments.toml";
 
 static RE_EXTRA_TAG: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"!(\w+):([^\s]+)"#).expect("valid regex"));
+    LazyLock::new(|| Regex::new(r"!(\w+):(\S+)").expect("valid regex"));
 
 struct EntryContext<'a> {
     instruments: HashMap<String, Instrument>,
@@ -44,14 +50,12 @@ struct EntryContext<'a> {
 }
 
 pub fn run(args: Arguments, config: &Config) -> Result<()> {
-    let script_path = args
-        .script_path
-        .canonicalize()
-        .with_context(|| format!("failed to open {}", args.script_path.display()))?;
+    let script_path = absolute(&args.script_path)
+        .with_context(|| format!("invalid script path {}", args.script_path.display()))?;
     let script_args: HashMap<_, _> = args
         .script_args
         .into_iter()
-        .map(|a| (a.0.to_string(), a.1.unwrap_or_default().to_string()))
+        .map(|a| (a.key, a.value))
         .collect();
 
     let client = config.wavelog_client()?;
@@ -67,7 +71,7 @@ pub fn run(args: Arguments, config: &Config) -> Result<()> {
         ),
         (None, None) => bail!(
             "Wavelog is not configured; add [wavelog] to {} or specify --adif",
-            Config::default_path()?.display()
+            config.path().display()
         ),
     };
     let documents = source.read_documents(args.lenient_length.unwrap_or_default().into())?;
@@ -117,7 +121,7 @@ fn build_entry(
     let qso_exchanges = QsoExchanges::new(record);
 
     let mut instrument_key = context.default_instrument;
-    let comment = field(record, "COMMENT").unwrap_or_default();
+    let comment = get_optional_field(record, "COMMENT").unwrap_or_default();
     for extra_tag in RE_EXTRA_TAG.captures_iter(comment) {
         let key = extra_tag.get(1).expect("group must exist");
         let value = extra_tag.get(2).expect("group must exist");
@@ -131,12 +135,18 @@ fn build_entry(
     if let (Some(key), None) = (instrument_key, instrument) {
         warn!("unknown instrument: {key}");
     }
-    let power = field(record, "TX_PWR")
-        .and_then(|p| p.parse().ok())
+    let power = get_optional_field(record, "TX_PWR")
+        .and_then(|p| match p.parse() {
+            Ok(power) => Some(power),
+            Err(e) => {
+                warn!("invalid TX_PWR {p}: {e}");
+                None
+            }
+        })
         .or(context.default_power)
         .or(instrument.and_then(|i| i.default_power));
 
-    let operator_callsign = field(record, "OPERATOR");
+    let operator_callsign = get_optional_field(record, "OPERATOR");
     let operator_name = operator_callsign
         .and_then(|c| context.operators.get(c))
         .map(|o| o.name.to_compact_string());
@@ -168,16 +178,17 @@ fn build_station(
     record: &AdifRecord,
     subdivisions: Option<&mut SubdivisionResolver>,
 ) -> QslStation {
-    let grid = field(record, "MY_GRIDSQUARE").and_then(|g| match g.parse::<GridLocator>() {
-        Ok(grid) => Some(grid),
-        Err(e) => {
-            warn!("invalid MY_GRIDSQUARE {g}: {e}");
-            None
-        }
-    });
+    let grid =
+        get_optional_field(record, "MY_GRIDSQUARE").and_then(|g| match g.parse::<GridLocator>() {
+            Ok(grid) => Some(grid),
+            Err(e) => {
+                warn!("invalid MY_GRIDSQUARE {g}: {e}");
+                None
+            }
+        });
 
     let state = compact_field(record, "MY_STATE");
-    let dxcc = field(record, "MY_DXCC").and_then(|d| d.parse::<u32>().ok());
+    let dxcc = get_optional_field(record, "MY_DXCC").and_then(|d| d.parse::<u32>().ok());
     let state_name = match (subdivisions, dxcc, &state) {
         (Some(resolver), Some(dxcc), Some(state)) => resolver.resolve(dxcc, state),
         _ => None,
@@ -199,12 +210,8 @@ fn build_station(
     }
 }
 
-fn field<'a>(record: &'a AdifRecord, name: &str) -> Option<&'a str> {
-    record.field(name).filter(|v| !v.is_empty())
-}
-
 fn compact_field(record: &AdifRecord, name: &str) -> Option<CompactString> {
-    field(record, name).map(|v| v.to_compact_string())
+    get_optional_field(record, name).map(|v| v.to_compact_string())
 }
 
 fn run_script(
@@ -219,7 +226,10 @@ fn run_script(
     };
 
     let lua = initialize_lua(script_base)?;
-    let script_table: LuaTable = lua.load(script_text).eval()?;
+    let script_table: LuaTable = lua
+        .load(script_text)
+        .set_name(format!("@{}", script_path.display()))
+        .eval()?;
     let generate: LuaFunction = script_table.get("generate")?;
     let processed_value: LuaValue = generate.call((script_args, entries))?;
 

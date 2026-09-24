@@ -10,53 +10,60 @@ pub enum TableType {
     Map,
 }
 
-pub fn ensure_list(lua: &Lua, table: LuaTable) -> LuaResult<LuaTable> {
-    match table.metatable() {
-        Some(mt) => {
-            mt.set(SCHOPE_TYPE_KEY, SCHOPE_TYPE_LIST)?;
-        }
-        None => {
-            let mt = lua.create_table()?;
-            mt.set(SCHOPE_TYPE_KEY, SCHOPE_TYPE_LIST)?;
-            table.set_metatable(Some(mt))?;
+impl TableType {
+    fn marker(self) -> &'static str {
+        match self {
+            TableType::List => SCHOPE_TYPE_LIST,
+            TableType::Map => SCHOPE_TYPE_MAP,
         }
     }
-    Ok(table)
+
+    fn from_marker(marker: &str) -> Option<TableType> {
+        match marker {
+            SCHOPE_TYPE_LIST => Some(TableType::List),
+            SCHOPE_TYPE_MAP => Some(TableType::Map),
+            _ => None,
+        }
+    }
+}
+
+pub fn ensure_list(lua: &Lua, table: LuaTable) -> LuaResult<LuaTable> {
+    mark_table_type(lua, table, TableType::List)
 }
 
 pub fn ensure_map(lua: &Lua, table: LuaTable) -> LuaResult<LuaTable> {
-    match table.metatable() {
-        Some(mt) => {
-            mt.set(SCHOPE_TYPE_KEY, SCHOPE_TYPE_MAP)?;
-        }
+    mark_table_type(lua, table, TableType::Map)
+}
+
+fn mark_table_type(lua: &Lua, table: LuaTable, table_type: TableType) -> LuaResult<LuaTable> {
+    let metatable = match table.metatable() {
+        Some(mt) => mt,
         None => {
             let mt = lua.create_table()?;
-            mt.set(SCHOPE_TYPE_KEY, SCHOPE_TYPE_MAP)?;
-            table.set_metatable(Some(mt))?;
+            table.set_metatable(Some(mt.clone()))?;
+            mt
         }
-    }
+    };
+    metatable.set(SCHOPE_TYPE_KEY, table_type.marker())?;
     Ok(table)
 }
 
 pub fn check_table_type(table: &LuaTable) -> LuaResult<TableType> {
     if let Some(mt) = table.metatable() {
-        let ensured_type: Option<String> = mt.get(SCHOPE_TYPE_KEY)?;
-        match ensured_type.as_deref() {
-            Some(SCHOPE_TYPE_LIST) => return Ok(TableType::List),
-            Some(SCHOPE_TYPE_MAP) => return Ok(TableType::Map),
-            _ => (),
+        let marker: Option<String> = mt.get(SCHOPE_TYPE_KEY)?;
+        if let Some(table_type) = marker.as_deref().and_then(TableType::from_marker) {
+            return Ok(table_type);
         }
     }
 
-    match table.raw_len() {
-        0 => Ok(TableType::Map),
-        n => {
-            for i in 1..=n {
-                if !table.contains_key(i)? {
-                    return Ok(TableType::Map);
-                }
-            }
-            Ok(TableType::List)
+    let len = table.raw_len();
+    if len == 0 {
+        return Ok(TableType::Map);
+    }
+    for i in 1..=len {
+        if !table.contains_key(i)? {
+            return Ok(TableType::Map);
         }
     }
+    Ok(TableType::List)
 }

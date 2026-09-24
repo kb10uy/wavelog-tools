@@ -2,7 +2,6 @@ use std::{convert::Infallible, path::PathBuf, str::FromStr};
 
 use adif_reader::LengthMode;
 use clap::{Args, ValueEnum};
-use compact_str::{CompactString, ToCompactString};
 use time::{Date, error::Parse as TimeParseError, macros::format_description};
 
 /// Generates JSON data for QSL cards.
@@ -51,8 +50,8 @@ pub struct Arguments {
     #[arg(short, long = "instruments")]
     pub instruments_files: Vec<PathBuf>,
 
-    /// Specify arguments passed to script.
-    #[arg(short = 'A', long = "args")]
+    /// Specify arguments passed to script as KEY or KEY=VALUE.
+    #[arg(short = 'A', long = "args", value_name = "KEY[=VALUE]")]
     pub script_args: Vec<ScriptArg>,
 
     /// Specify default instrument.
@@ -92,19 +91,41 @@ impl From<LenientMode> for LengthMode {
     }
 }
 
+/// Script argument given as `KEY` or `KEY=VALUE`; a bare `KEY` has an empty value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ScriptArg(pub CompactString, pub Option<CompactString>);
+pub struct ScriptArg {
+    pub key: String,
+    pub value: String,
+}
 
 impl FromStr for ScriptArg {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.split_once('=') {
-            Some((k, v)) => Ok(ScriptArg(
-                k.to_compact_string(),
-                Some(v.to_compact_string()),
-            )),
-            None => Ok(ScriptArg(s.to_compact_string(), None)),
-        }
+        let (key, value) = s.split_once('=').unwrap_or((s, ""));
+        Ok(ScriptArg {
+            key: key.to_string(),
+            value: value.to_string(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_script_arg() {
+        let arg: ScriptArg = "key=value".parse().unwrap();
+        assert_eq!(arg.key, "key");
+        assert_eq!(arg.value, "value");
+
+        let arg: ScriptArg = "a=b=c".parse().unwrap();
+        assert_eq!(arg.key, "a");
+        assert_eq!(arg.value, "b=c");
+
+        let arg: ScriptArg = "flag".parse().unwrap();
+        assert_eq!(arg.key, "flag");
+        assert_eq!(arg.value, "");
     }
 }

@@ -15,13 +15,14 @@ const ADIF_TIME: &[BorrowedFormatItem<'_>] =
 const ADIF_TIME_SHORT: &[BorrowedFormatItem<'_>] =
     format_description!("[hour repr:24 padding:zero][minute padding:zero]");
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct QsoRecord {
     pub datetime: UtcDateTime,
     pub band: Band,
     pub mode: CompactString,
     pub call: CompactString,
-    pub frequency: CompactString,
+    pub frequency: f64,
+    pub frequency_str: CompactString,
 }
 
 impl QsoRecord {
@@ -38,17 +39,18 @@ impl QsoRecord {
         )
         .to_utc();
 
-        let adif_band = get_required_field(record, "BAND")?;
+        let band = get_required_field(record, "BAND")?;
         let mode = get_required_field(record, "MODE")?;
-        let callsign = get_required_field(record, "CALL")?;
-        let frequency = get_required_field(record, "FREQ")?;
+        let call = get_required_field(record, "CALL")?;
+        let frequency_str = get_required_field(record, "FREQ")?;
 
         Ok(QsoRecord {
             datetime,
-            band: adif_band.to_ascii_lowercase().parse()?,
+            band: band.to_ascii_lowercase().parse()?,
             mode: mode.to_compact_string(),
-            call: callsign.to_compact_string(),
-            frequency: frequency.to_compact_string(),
+            call: call.to_compact_string(),
+            frequency: frequency_str.parse()?,
+            frequency_str: frequency_str.to_compact_string(),
         })
     }
 }

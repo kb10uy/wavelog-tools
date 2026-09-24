@@ -27,7 +27,7 @@ pub struct Config {
     pub operators: HashMap<String, OperatorConfig>,
 
     #[serde(skip)]
-    directory: Option<PathBuf>,
+    path: PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -56,13 +56,11 @@ impl Config {
             None => Config::default_path()?,
         };
 
-        let directory = path.parent().map(Path::to_path_buf);
-
         let text = match read_to_string(&path) {
             Ok(text) => text,
             Err(e) if e.kind() == ErrorKind::NotFound && explicit_path.is_none() => {
                 return Ok(Config {
-                    directory,
+                    path,
                     ..Default::default()
                 });
             }
@@ -72,15 +70,16 @@ impl Config {
         };
         let config: Config =
             toml::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-        Ok(Config {
-            directory,
-            ..config
-        })
+        Ok(Config { path, ..config })
+    }
+
+    /// Returns the path this config was loaded from, whether or not the file exists.
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     pub fn sibling_file(&self, filename: &str) -> Option<PathBuf> {
-        let directory = self.directory.as_deref()?;
-        let path = directory.join(filename);
+        let path = self.path.parent()?.join(filename);
         path.is_file().then_some(path)
     }
 

@@ -64,18 +64,18 @@ pub struct QslStation {
 impl IntoLua for QslStation {
     fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
         let table = lua.create_table()?;
-        table.set("callsign", self.callsign.map(|s| s.to_string()))?;
+        table.set("callsign", self.callsign.as_deref())?;
         table.set("grid", self.grid.map(|g| g.to_string()))?;
-        table.set("city", self.city.map(|s| s.to_string()))?;
-        table.set("state", self.state.map(|s| s.to_string()))?;
-        table.set("state_name", self.state_name.map(|s| s.to_string()))?;
-        table.set("country", self.country.map(|s| s.to_string()))?;
-        table.set("pota", self.pota.map(|s| s.to_string()))?;
-        table.set("sota", self.sota.map(|s| s.to_string()))?;
-        table.set("wwff", self.wwff.map(|s| s.to_string()))?;
-        table.set("iota", self.iota.map(|s| s.to_string()))?;
-        table.set("sig", self.sig.map(|s| s.to_string()))?;
-        table.set("sig_info", self.sig_info.map(|s| s.to_string()))?;
+        table.set("city", self.city.as_deref())?;
+        table.set("state", self.state.as_deref())?;
+        table.set("state_name", self.state_name.as_deref())?;
+        table.set("country", self.country.as_deref())?;
+        table.set("pota", self.pota.as_deref())?;
+        table.set("sota", self.sota.as_deref())?;
+        table.set("wwff", self.wwff.as_deref())?;
+        table.set("iota", self.iota.as_deref())?;
+        table.set("sig", self.sig.as_deref())?;
+        table.set("sig_info", self.sig_info.as_deref())?;
 
         Ok(LuaValue::Table(table))
     }
@@ -90,8 +90,8 @@ pub struct QslOperator {
 impl IntoLua for QslOperator {
     fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
         let table = lua.create_table()?;
-        table.set("callsign", self.callsign.map(|s| s.to_string()))?;
-        table.set("name", self.name.map(|s| s.to_string()))?;
+        table.set("callsign", self.callsign.as_deref())?;
+        table.set("name", self.name.as_deref())?;
 
         Ok(LuaValue::Table(table))
     }
@@ -107,8 +107,8 @@ pub struct QslInstrument {
 impl IntoLua for QslInstrument {
     fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
         let table = lua.create_table()?;
-        table.set("antenna", self.antenna.map(|s| s.to_string()))?;
-        table.set("rig", self.rig.map(|s| s.to_string()))?;
+        table.set("antenna", self.antenna.as_deref())?;
+        table.set("rig", self.rig.as_deref())?;
         table.set("power", self.power)?;
 
         Ok(LuaValue::Table(table))
@@ -127,7 +127,7 @@ impl IntoLua for QslCard {
         let table = lua.create_table()?;
         table.set("should_send", self.should_send)?;
         table.set("received", self.received)?;
-        table.set("manager", self.manager.map(|s| s.to_string()))?;
+        table.set("manager", self.manager.as_deref())?;
 
         Ok(LuaValue::Table(table))
     }

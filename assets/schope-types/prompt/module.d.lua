@@ -21,7 +21,7 @@ function prompt.integer(text, default) end
 ---@return number Input.
 function prompt.float(text, default) end
 
---- Asks the user for float.
+--- Asks the user to select one of choices.
 ---@param text string Prompt text.
 ---@param choices string[] Choices.
 ---@param default integer|nil Default value index.

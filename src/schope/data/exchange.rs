@@ -14,10 +14,10 @@ pub struct Exchange {
 impl IntoLua for Exchange {
     fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
         let table = lua.create_table()?;
-        table.set("tx_report", self.tx_report.map(|s| s.to_string()))?;
-        table.set("tx_number", self.tx_number.map(|s| s.to_string()))?;
-        table.set("rx_report", self.rx_report.map(|s| s.to_string()))?;
-        table.set("rx_number", self.rx_number.map(|s| s.to_string()))?;
+        table.set("tx_report", self.tx_report.as_deref())?;
+        table.set("tx_number", self.tx_number.as_deref())?;
+        table.set("rx_report", self.rx_report.as_deref())?;
+        table.set("rx_number", self.rx_number.as_deref())?;
 
         Ok(LuaValue::Table(table))
     }

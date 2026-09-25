@@ -8,7 +8,7 @@ use ureq::Agent;
 use url::Url;
 
 pub use error::WavelogError;
-pub use qso::QsoQuery;
+pub use qso::{QslFilter, QsoQuery};
 
 const API_ROOT: &str = "index.php/api/v2/";
 const RESPONSE_BODY_LIMIT: u64 = 1024 * 1024 * 1024;

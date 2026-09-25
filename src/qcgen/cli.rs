@@ -2,7 +2,8 @@ use std::{convert::Infallible, path::PathBuf, str::FromStr};
 
 use adif_reader::LengthMode;
 use clap::{Args, ValueEnum};
-use time::{Date, error::Parse as TimeParseError, macros::format_description};
+
+use crate::cli::QsoQueryArgs;
 
 /// Generates JSON data for QSL cards.
 #[derive(Debug, Clone, Args)]
@@ -11,25 +12,11 @@ pub struct Arguments {
     pub script_path: PathBuf,
 
     /// Read QSOs from ADIF file instead of Wavelog.
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, value_name = "FILE", conflicts_with = "QsoQueryArgs")]
     pub adif: Option<PathBuf>,
 
-    /// Fetch QSOs only from specified Wavelog station locations.
-    #[arg(
-        long,
-        conflicts_with = "adif",
-        value_delimiter = ',',
-        value_name = "ID"
-    )]
-    pub station_id: Vec<u64>,
-
-    /// Fetch QSOs on or after the date (YYYY-MM-DD).
-    #[arg(long, conflicts_with = "adif", value_parser = parse_date, value_name = "DATE")]
-    pub qso_since: Option<Date>,
-
-    /// Fetch QSOs on or before the date (YYYY-MM-DD).
-    #[arg(long, conflicts_with = "adif", value_parser = parse_date, value_name = "DATE")]
-    pub qso_until: Option<Date>,
+    #[command(flatten)]
+    pub query: QsoQueryArgs,
 
     /// Do not resolve subdivision names via Wavelog catalog.
     #[arg(long)]
@@ -62,10 +49,6 @@ pub struct Arguments {
     /// It overrides default instrument's value.
     #[arg(short = 'P', long)]
     pub power: Option<f64>,
-}
-
-fn parse_date(s: &str) -> Result<Date, TimeParseError> {
-    Date::parse(s, format_description!("[year]-[month]-[day]"))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]

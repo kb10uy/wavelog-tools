@@ -32,8 +32,8 @@ impl AdifSource<'_> {
             AdifSource::Wavelog(client, query) => {
                 let mut documents = vec![];
                 for (i, page) in client.qso_adif_pages(query).enumerate() {
-                    let adif = page.context("failed to fetch QSOs from Wavelog")?;
-                    let document = read_adi(&adif, length_mode)
+                    let page = page.context("failed to fetch QSOs from Wavelog")?;
+                    let document = read_adi(&page.adif, length_mode)
                         .with_context(|| format!("failed to parse ADIF page {i}"))?;
                     info!(
                         "fetched {} QSOs from Wavelog (page {i})",

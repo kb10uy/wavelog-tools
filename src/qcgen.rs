@@ -61,14 +61,7 @@ pub fn run(args: Arguments, config: &Config) -> Result<()> {
     let client = config.wavelog_client()?;
     let source = match (args.adif, &client) {
         (Some(path), _) => AdifSource::File(path),
-        (None, Some(client)) => AdifSource::Wavelog(
-            client,
-            QsoQuery {
-                station_ids: args.station_id,
-                qso_since: args.qso_since,
-                qso_until: args.qso_until,
-            },
-        ),
+        (None, Some(client)) => AdifSource::Wavelog(client, QsoQuery::from(args.query)),
         (None, None) => bail!(
             "Wavelog is not configured; add [wavelog] to {} or specify --adif",
             config.path().display()

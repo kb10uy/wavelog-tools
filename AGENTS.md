@@ -6,11 +6,12 @@ Wavelog Tools is a single Rust binary (`wavelog-tools`) that bundles tools using
 [Wavelog](https://www.wavelog.org/) REST API v2. Each tool is a clap subcommand.
 
 - `qcgen`: generates JSON data for QSL cards from ADIF (local file or Wavelog export) through a Lua script
+- `export`: exports QSOs from Wavelog as ADIF with filters of `/api/v2/qso`
 
 ## Project Layout
 
 - `src/main.rs`: entry point, dispatches subcommands
-- `src/cli.rs`: top-level clap definitions (`Cli`, `Command`)
+- `src/cli.rs`: top-level clap definitions (`Cli`, `Command`) and shared arguments (`QsoQueryArgs`)
 - `src/config.rs`: `config.toml` shared by all tools (Wavelog connection, operators)
 - `src/wavelog.rs`, `src/wavelog/`: Wavelog API v2 client, independent from each tool
 - `src/qso.rs`, `src/qso/`: common QSO data extracted from ADIF records

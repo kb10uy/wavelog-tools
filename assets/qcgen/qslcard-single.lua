@@ -12,6 +12,24 @@ local function capitalize_if_upper(text)
     end))
 end
 
+---@param parks QslPark[]
+---@return string|nil
+local function format_parks(parks)
+    local lines = {}
+    for _, park in ipairs(parks) do
+        local name = park.name_en or park.name_ja
+        if name ~= nil then
+            table.insert(lines, park.reference .. " " .. name)
+        else
+            table.insert(lines, park.reference)
+        end
+    end
+    if #lines == 0 then
+        return nil
+    end
+    return table.concat(lines, ", ")
+end
+
 ---@param station QslStation
 ---@return string
 local function format_location(station)
@@ -26,7 +44,13 @@ local function format_location(station)
             table.insert(parts, candidates[i])
         end
     end
-    return table.concat(parts, ", ")
+    local location = table.concat(parts, ", ")
+
+    local parks = format_parks(station.parks)
+    if parks ~= nil then
+        location = location .. "\n" .. parks
+    end
+    return location
 end
 
 ---@param args table<string,string>

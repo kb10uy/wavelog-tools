@@ -11,7 +11,7 @@ Use `-c/--config` to specify another file. See `assets/config.example.toml`.
 - `[wavelog]`: URL and API token (`token`, `token_file`, or `WAVELOG_TOKEN` environment variable)
 - `[operators.<CALLSIGN>]`: display name of operator
 
-`instruments.toml` placed next to `config.toml` is also loaded by `qcgen` (see `assets/qcgen/instruments.example.toml`).
+`instruments.toml` and `parks.toml` placed next to `config.toml` are also loaded by `qcgen` (see `assets/qcgen/instruments.example.toml` and `assets/qcgen/parks.example.toml`).
 
 ## qcgen
 
@@ -30,6 +30,7 @@ wavelog-tools qcgen assets/qcgen/qslcard-single.lua --adif qsos.adi
 - `MY_STATE` is resolved to its name via Wavelog catalog API when Wavelog is configured (disable with `--no-state-names`)
 - Operator comes from `OPERATOR`; its display name is looked up from `[operators]` in config
 - `QSL_VIA` is passed as `card.manager`
+- `MY_POTA_REF` is split into `station.parks` (reference, location and names from `parks.toml`); raw value remains in `station.pota`
 - `!inst:<key>` in `COMMENT` (or `-I <key>`) selects instrument from `instruments.toml` and `-i` files; power is taken from `TX_PWR`, `--power`, then `default_power` of instrument
 
 See `assets/qcgen/` for example files and `assets/schope-types/` for Lua type definitions.

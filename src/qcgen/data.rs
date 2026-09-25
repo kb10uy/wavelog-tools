@@ -10,6 +10,12 @@ pub struct Instrument {
     pub default_power: Option<f64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Park {
+    pub name_en: Option<String>,
+    pub name_ja: Option<String>,
+}
+
 pub fn read_items_from_tomls<T: DeserializeOwned>(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
 ) -> Result<HashMap<String, T>> {

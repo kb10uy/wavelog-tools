@@ -59,6 +59,8 @@ pub struct QslStation {
 
     pub sig: Option<CompactString>,
     pub sig_info: Option<CompactString>,
+
+    pub parks: Vec<QslPark>,
 }
 
 impl IntoLua for QslStation {
@@ -76,6 +78,27 @@ impl IntoLua for QslStation {
         table.set("iota", self.iota.as_deref())?;
         table.set("sig", self.sig.as_deref())?;
         table.set("sig_info", self.sig_info.as_deref())?;
+        table.set("parks", self.parks)?;
+
+        Ok(LuaValue::Table(table))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QslPark {
+    pub reference: CompactString,
+    pub location: Option<CompactString>,
+    pub name_en: Option<CompactString>,
+    pub name_ja: Option<CompactString>,
+}
+
+impl IntoLua for QslPark {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        let table = lua.create_table()?;
+        table.set("reference", self.reference.as_str())?;
+        table.set("location", self.location.as_deref())?;
+        table.set("name_en", self.name_en.as_deref())?;
+        table.set("name_ja", self.name_ja.as_deref())?;
 
         Ok(LuaValue::Table(table))
     }

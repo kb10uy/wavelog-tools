@@ -13,4 +13,5 @@
 ---@field iota string|nil
 ---@field sig string|nil
 ---@field sig_info string|nil
+---@field parks QslPark[]
 local QslStation = {}

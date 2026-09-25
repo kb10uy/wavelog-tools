@@ -24,8 +24,8 @@ use tracing::{Level, info, span, warn};
 use crate::{
     config::{Config, OperatorConfig},
     qcgen::{
-        card::{QslCard, QslCardEntry, QslInfo, QslInstrument, QslOperator, QslStation},
-        data::{Instrument, read_items_from_tomls},
+        card::{QslCard, QslCardEntry, QslInfo, QslInstrument, QslOperator, QslPark, QslStation},
+        data::{Instrument, Park, read_items_from_tomls},
         source::AdifSource,
         subdivision::SubdivisionResolver,
     },
@@ -37,12 +37,14 @@ use crate::{
 pub use cli::Arguments;
 
 const INSTRUMENTS_FILENAME: &str = "instruments.toml";
+const PARKS_FILENAME: &str = "parks.toml";
 
 static RE_EXTRA_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"!(\w+):(\S+)").expect("valid regex"));
 
 struct EntryContext<'a> {
     instruments: HashMap<String, Instrument>,
+    parks: HashMap<String, Park>,
     operators: &'a HashMap<String, OperatorConfig>,
     default_instrument: Option<&'a str>,
     default_power: Option<f64>,
@@ -76,6 +78,10 @@ pub fn run(args: Arguments, config: &Config) -> Result<()> {
                 .into_iter()
                 .chain(args.instruments_files),
         )?,
+        parks: read_items_from_tomls::<Park>(config.sibling_file(PARKS_FILENAME))?
+            .into_iter()
+            .map(|(k, v)| (k.to_ascii_uppercase(), v))
+            .collect(),
         operators: &config.operators,
         default_instrument: args.instrument.as_deref(),
         default_power: args.power,
@@ -151,7 +157,7 @@ fn build_entry(
         qso: qso_record.into(),
         exchange: qso_exchanges.into(),
         info: QslInfo {
-            station: build_station(record, context.subdivisions.as_mut()),
+            station: build_station(record, &context.parks, context.subdivisions.as_mut()),
             operator: QslOperator {
                 callsign: operator_callsign.map(|s| s.to_compact_string()),
                 name: operator_name,
@@ -177,6 +183,7 @@ fn is_valid_power(power: &f64) -> bool {
 
 fn build_station(
     record: &AdifRecord,
+    parks: &HashMap<String, Park>,
     subdivisions: Option<&mut SubdivisionResolver>,
 ) -> QslStation {
     let grid =
@@ -208,7 +215,44 @@ fn build_station(
         iota: compact_field(record, "MY_IOTA"),
         sig: compact_field(record, "MY_SIG"),
         sig_info: compact_field(record, "MY_SIG_INFO"),
+        parks: get_optional_field(record, "MY_POTA_REF")
+            .map(|r| build_parks(r, parks))
+            .unwrap_or_default(),
     }
+}
+
+/// Splits comma-separated POTA references (with optional `@LOCATION`) and resolves park names.
+fn build_parks(pota_ref: &str, parks: &HashMap<String, Park>) -> Vec<QslPark> {
+    pota_ref
+        .split(',')
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .map(|r| {
+            let (reference, location) = match r.split_once('@') {
+                Some((reference, location)) => (reference.trim(), Some(location.trim())),
+                None => (r, None),
+            };
+            let reference = reference.to_ascii_uppercase();
+            let park = parks.get(&reference);
+            if park.is_none() {
+                warn!("unknown park: {reference}");
+            }
+            QslPark {
+                location: location
+                    .filter(|l| !l.is_empty())
+                    .map(|l| l.to_ascii_uppercase().into()),
+                name_en: park
+                    .and_then(|p| p.name_en.as_deref())
+                    .filter(|n| !n.is_empty())
+                    .map(|n| n.to_compact_string()),
+                name_ja: park
+                    .and_then(|p| p.name_ja.as_deref())
+                    .filter(|n| !n.is_empty())
+                    .map(|n| n.to_compact_string()),
+                reference: reference.into(),
+            }
+        })
+        .collect()
 }
 
 fn compact_field(record: &AdifRecord, name: &str) -> Option<CompactString> {
@@ -235,4 +279,39 @@ fn run_script(
     let processed_value: LuaValue = generate.call((script_args, entries))?;
 
     Ok(lua_to_json(processed_value)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_parks() {
+        let parks = HashMap::from([(
+            "JP-0001".to_string(),
+            Park {
+                name_en: Some("Park One".to_string()),
+                name_ja: Some("公園一".to_string()),
+            },
+        )]);
+
+        let built = build_parks("jp-0001@jp-13, JP-0002", &parks);
+        assert_eq!(
+            built,
+            [
+                QslPark {
+                    reference: "JP-0001".into(),
+                    location: Some("JP-13".into()),
+                    name_en: Some("Park One".into()),
+                    name_ja: Some("公園一".into()),
+                },
+                QslPark {
+                    reference: "JP-0002".into(),
+                    location: None,
+                    name_en: None,
+                    name_ja: None,
+                },
+            ]
+        );
+    }
 }
